@@ -49,31 +49,27 @@ def text_area(title: str,
     from prompt_toolkit.enums import EditingMode
     from prompt_toolkit.buffer import Buffer
     from prompt_toolkit.layout.containers import HSplit, Window, WindowAlign
-    from prompt_toolkit.layout.controls import (
-        BufferControl, FormattedTextControl
-    )
+    from prompt_toolkit.layout.controls import (BufferControl,
+                                                FormattedTextControl)
     from prompt_toolkit.layout.layout import Layout
-    from prompt_toolkit.utils import Event
     from prompt_toolkit.layout import Dimension
     from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.key_binding.key_processor import KeyPressEvent
     from prompt_toolkit.lexers import PygmentsLexer
     from pygments.lexers import find_lexer_class_by_name
 
     kb = KeyBindings()
-    buffer1 = Buffer()
-    buffer1.text = text
+    text_buffer = Buffer()
+    text_buffer.text = text
+    should_save = False
 
-    @kb.add('c-q')  # type: ignore
-    def exit_(event: Event) -> None:
-        event.app.exit(0)
+    @kb.add('c-q')
+    def exit_(event: KeyPressEvent) -> None:
+        event.app.exit()
 
-    @kb.add('c-s')  # type: ignore
-    def save_(event: Event) -> None:
-        event.app.return_text = buffer1.text
-
-    class App(Application):  # type: ignore
-        # TODO: add stubs to be able to remove type ignore above
-        return_text = ""  # type: str
+    @kb.add('c-s')
+    def save_(event: KeyPressEvent) -> None:
+        should_save = True
 
     text_height = Dimension(min=0, max=height) if height is not None else None
 
@@ -81,7 +77,7 @@ def text_area(title: str,
     lexer = PygmentsLexer(pygment_lexer)
     text_window = Window(height=text_height,
                          style='bg:black fg:ansiwhite',
-                         content=BufferControl(buffer=buffer1, lexer=lexer))
+                         content=BufferControl(buffer=text_buffer, lexer=lexer))
 
     root_container = HSplit([
         Window(
@@ -114,16 +110,17 @@ def text_area(title: str,
 
     layout.focus(text_window)
 
-    app = App(editing_mode=EditingMode.EMACS,
-              layout=layout,
-              key_bindings=kb,
-              full_screen=full_screen)
+    app = Application(editing_mode=EditingMode.EMACS,
+                      layout=layout,
+                      erase_when_done=True,
+                      key_bindings=kb,
+                      full_screen=full_screen)  # type: Application[Any]
     app.run()
-    return app.return_text
+    return text_buffer.text if should_save else ""
 
 
 def yes_no_dialog(title: str, text: str) -> Any:
-    from prompt_toolkit.shortcuts import yes_no_dialog
+    from prompt_toolkit.shortcuts import yes_no_dialog as yesno
     from prompt_toolkit.styles import Style
 
     example_style = Style.from_dict({
@@ -133,16 +130,15 @@ def yes_no_dialog(title: str, text: str) -> Any:
         'dialog shadow': 'bg:#00aa00',
     })
 
-    return yes_no_dialog(title=title, text=text, style=example_style)
+    return yesno(title=title, text=text, style=example_style)
 
 
-def prompt(
-        prompt_string: str,
-        default: str = "",
-        bottom_toolbar: Optional[str] = None,
-        multiline: bool = False,
-        validator_function: Optional[Callable[[str], bool]] = None,
-        dirty_message: str = "") -> str:
+def prompt(prompt_string: str,
+           default: str = "",
+           bottom_toolbar: Optional[str] = None,
+           multiline: bool = False,
+           validator_function: Optional[Callable[[str], bool]] = None,
+           dirty_message: str = "") -> str:
     """Prompt user for input
 
     :param prompt_string: Question or text that the user gets.
@@ -154,21 +150,17 @@ def prompt(
 
     """
     import prompt_toolkit
-    import prompt_toolkit.validation
+    from prompt_toolkit.validation import Validator
+    from prompt_toolkit.formatted_text.base import to_formatted_text
+    validator = None  # type: Optional[Validator]
     if validator_function is not None:
-        validator = prompt_toolkit.validation.Validator.from_callable(
-            validator_function,
-            error_message=dirty_message,
-            move_cursor_to_end=True
-        )
-    else:
-        validator = None
+        validator = Validator.from_callable(validator_function,
+                                            error_message=dirty_message,
+                                            move_cursor_to_end=True)
 
-    fragments = [
-        ('', prompt_string),
-        ('fg:red', ' ({0})'.format(default)),
-        ('', ': '),
-    ]
+    fragments = to_formatted_text([('', prompt_string),
+                                   ('fg:red', ' ({0})'.format(default)),
+                                   ('', ': '),])
 
     result = prompt_toolkit.prompt(fragments,
                                    validator=validator,
