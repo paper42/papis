@@ -63,11 +63,11 @@ def text_area(title: str,
     text_buffer.text = text
     should_save = False
 
-    @kb.add('c-q')
+    @kb.add('c-q')  # type: ignore
     def exit_(event: KeyPressEvent) -> None:
         event.app.exit()
 
-    @kb.add('c-s')
+    @kb.add('c-s')  # type: ignore
     def save_(event: KeyPressEvent) -> None:
         should_save = True
 
@@ -77,7 +77,8 @@ def text_area(title: str,
     lexer = PygmentsLexer(pygment_lexer)
     text_window = Window(height=text_height,
                          style='bg:black fg:ansiwhite',
-                         content=BufferControl(buffer=text_buffer, lexer=lexer))
+                         content=BufferControl(
+                             buffer=text_buffer, lexer=lexer))
 
     root_container = HSplit([
         Window(
@@ -160,7 +161,7 @@ def prompt(prompt_string: str,
 
     fragments = to_formatted_text([('', prompt_string),
                                    ('fg:red', ' ({0})'.format(default)),
-                                   ('', ': '),])
+                                   ('', ': ')])
 
     result = prompt_toolkit.prompt(fragments,
                                    validator=validator,
